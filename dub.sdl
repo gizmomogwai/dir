@@ -1,0 +1,7 @@
+name "dir"
+description "A sensible ls in dlang."
+authors "Christian Köstlin"
+copyright "Copyright © 2017, Christian Köstlin"
+license "MIT"
+dependency "consoled" version="~>1.0.4"
+dependency "dlib" version="~>0.10.0"
