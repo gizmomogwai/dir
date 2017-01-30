@@ -46,9 +46,43 @@ class DirColorColumn : Column {
   }
 }
 
-class SizeColumn : Column {
+class ByteSizeColumn : Column {
   override void write(DirEntry entry, stat_t* fileStat) {
-    writec(format("%10d  ", fileStat.st_size));
+    auto size = fileStat.st_size;
+    writec("%10d".format(size));
+  }
+}
+class HumanReadableSizeColumn : Column {
+  override void write(DirEntry entry, stat_t* fileStat) {
+    auto size = fileStat.st_size;
+    auto res = format("%3db", size);
+    if (res.length <= 4) {
+      writec(res);
+      return;
+    }
+
+    auto s = size / 1024.0;
+    res = format("%.1fk", s);
+    if (res.length <= 4) {
+      writec(res);
+      return;
+    }
+
+    s = s / 1024.0;
+    res = format("%.1fm", s);
+    if (res.length <= 4) {
+      writec(res);
+      return;
+    }
+
+    s = s / 1024.0;
+    res = format("%.1fg", s);
+    writeln(res);
+    if (res.length <= 4) {
+      writec(res);
+      return;
+    }
+
   }
 }
 
@@ -84,6 +118,12 @@ class ModificationTimeColumn : Column {
   }
 }
 
+class SpaceColumn : Column {
+  override void write(DirEntry entry, stat_t* fileStat) {
+    writec(" ");
+  }
+}
+
 struct Formatter {
   Column[] columns;
   public this(Column[] columns) {
@@ -113,8 +153,14 @@ int main(string[] args) {
       case 'o':
         columns ~= new OctalColumn();
         break;
+      case 'h':
+        columns ~= new HumanReadableSizeColumn();
+        break;
+      case 'b':
+        columns ~= new ByteSizeColumn();
+        break;
       case 's':
-        columns ~= new SizeColumn();
+        columns ~= new SpaceColumn();
         break;
       case 'm':
         columns ~= new ModificationTimeColumn();
@@ -136,7 +182,7 @@ int main(string[] args) {
                                 "sort|s", "Sort mode (byName, dirsFirst)", &sort,
   );
   if (helpInformation.helpWanted) {
-    defaultGetoptPrinter("Some information about the program.",
+    defaultGetoptPrinter("listing files flexible.",
                          helpInformation.options);
     return 0;
   }
