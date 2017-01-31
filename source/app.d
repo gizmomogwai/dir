@@ -1,14 +1,15 @@
-import std.file : exists;
-import std.getopt;
-import std.stdio;
-import std.string;
 import consoled;
-import dlib.filesystem.local;
+import core.sys.posix.sys.stat;
 import dlib.filesystem.filesystem;
+import dlib.filesystem.local;
 import std.algorithm.sorting;
 import std.array;
+import std.datetime;
+import std.file : exists, isFile;
+import std.getopt;
 import std.path;
-import core.sys.posix.sys.stat;
+import std.stdio;
+import std.string;
 
 enum SortOrder { byName, dirsFirst }
 
@@ -109,7 +110,7 @@ class OctalColumn : Column {
     writec(format("%4o", mode & 0b111_111_111));
   }
 }
-import std.datetime;
+
 class ModificationTimeColumn : Column {
   override void write(DirEntry entry, stat_t* fileStat) {
 
@@ -124,22 +125,27 @@ class SpaceColumn : Column {
   }
 }
 
+class GitColumn : Column {
+  private bool searched;
+  override void write(DirEntry entry, stat_t* fileStat) {
+  }
+}
 struct Formatter {
   Column[] columns;
   public this(Column[] columns) {
     this.columns = columns;
   }
-  public void write(DirEntry entry) {
+  public void write(string path, DirEntry entry) {
     foreach (column; columns) {
       stat_t fileStats;
-      auto res = stat(entry.name.toStringz, &fileStats);
+      auto res = stat((path ~ "/" ~ entry.name).toStringz, &fileStats);
       column.write(entry, &fileStats);
     }
     writeln();
   }
 }
 
-int main(string[] args) {
+int main2(string[] args) {
   Column[] columns;
   void columnsHandler(string option, string value) {
     foreach (c; value) {
@@ -168,6 +174,9 @@ int main(string[] args) {
       case 'n':
         columns ~= new NameColumn();
         break;
+      case 'g':
+        columns ~= new GitColumn();
+        break;
       default:
         throw new Exception("unknown option " ~ c);
       }
@@ -175,11 +184,9 @@ int main(string[] args) {
   }
 
   SortOrder sort;
-
   auto helpInformation = getopt(args,
-                                std.getopt.config.bundling,
-                                "columns|c", "Specify columns (d,f,s,m,n)", &columnsHandler,
-                                "sort|s", "Sort mode (byName, dirsFirst)", &sort,
+                                "columns|c", "Specify columns", &columnsHandler,
+                                "sort|s", "Sort mode", &sort,
   );
   if (helpInformation.helpWanted) {
     defaultGetoptPrinter("listing files flexible.",
@@ -192,13 +199,18 @@ int main(string[] args) {
     path = args[1];
   }
 
+  Formatter formatter = Formatter(columns);
+
   path = absolutePath(path);
   path = asNormalizedPath(path).array;
   if (!exists(path)) {
     stderr.writeln("Path does not exists: ", path);
     return 1;
+  } else if (isFile(path)) {
+    formatter.write(dirName(path), DirEntry(baseName(path), true,false));
+    return 0;
   }
-  writeln(path);
+
   auto dir = openDir(path);
 
   auto sortFunction = &sortByName;
@@ -206,12 +218,59 @@ int main(string[] args) {
     sortFunction = &sortByNameDirsFirst;
   }
   auto contents = dir.contents.array.sort!(sortFunction);
-  writeln("after sort: ", contents);
-  Formatter formatter = Formatter(columns);
 
   foreach (file; contents) {
-    formatter.write(file);
+    formatter.write(path, file);
   }
   return 0;
 
+}
+
+
+import std.stdio : writeln;
+import std.string : toStringz;
+
+import core.memory : GC;
+
+import deimos.git2.buffer;
+import deimos.git2.types;
+import deimos.git2.repository;
+import git.repository;
+import git.oid;
+import git.commit;
+import git.status;
+
+void main() {
+  /*    git_repository *repo;
+
+    git_buf buffer;
+    writeln(git_repository_discover(&buffer, ".".toStringz, cast(bool)true, null));
+    auto repoPath = fromStringz(buffer.ptr);
+    git_buf_free(&buffer);
+    writeln("lowlevel: ", repoPath);
+  */
+    auto repoPath = discoverRepo(".");
+    auto repo = openRepository(repoPath);
+    writeln(repo.head());
+    writeln(repo.state());
+
+
+    auto oid = GitOid("4ee7f63c84bda260b6c61780ab11a229a9721d19");
+    writeln(oid);
+    auto commit = repo.lookupCommit(oid);
+    writeln(commit);
+    writeln(commit.message);
+    writeln(repo.status("source/app.d"));
+
+    foreach (refName, remoteURL, oid, isMerge; repo.walkFetchHead) {
+      writeln(refName);
+      writeln(remoteURL);
+    }
+
+    //writeln("lowlevel: ", git_repository_open(&repo, repoPath.toStringz()));
+    //writeln(buffer);
+    //git_repository_free(repo);
+
+    //    writeln(discoverRepo("."));
+    writeln("END");
 }
