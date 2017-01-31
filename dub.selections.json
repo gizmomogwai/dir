@@ -3,7 +3,7 @@
 	"versions": {
 		"consoled": "1.0.4",
 		"dlib": "0.10.0",
-		"dlibgit": "0.50.6",
+		"dlibgit": "1.0.0",
 		"libgit2": "0.20.1"
 	}
 }
