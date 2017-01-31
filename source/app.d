@@ -4,6 +4,7 @@ import dlib.filesystem.filesystem;
 import dlib.filesystem.local;
 import git.repository;
 import git.status;
+import git.exception;
 import std.algorithm.sorting;
 import std.algorithm;
 import std.array;
@@ -146,7 +147,7 @@ class GitColumn : Column {
       try {
         withRepo(repo, entry, fileStat);
         return;
-      } catch (Exception e) {
+      } catch (GitException e) {
       }
     }
     withoutRepo(entry, fileStat);
@@ -190,7 +191,8 @@ class GitColorColumn : GitColumn {
 class GitStatusColumn : GitColumn {
   import deimos.git2.status;
   override protected void withRepo(GitRepo repo, DirEntry entry, stat_t* fileStat) {
-    writec(toString(repo.status(entry.name).status));
+    auto status = repo.status(entry.name).status;
+    writec(toString(status));
   }
   override protected void withoutRepo(DirEntry entry, stat_t* fileStat) {
     writec("  ");
@@ -198,42 +200,42 @@ class GitStatusColumn : GitColumn {
   private string toString(git_status_t status) {
     dchar index = '-';
     dchar workTree = '-';
-    if (status & GIT_STATUS_CURRENT) {
+    if (status == GIT_STATUS_CURRENT) {
     }
 
-    if (status & GIT_STATUS_INDEX_NEW) {
+    if (status == GIT_STATUS_INDEX_NEW) {
       index = 'N';
     }
-    if (status & GIT_STATUS_INDEX_MODIFIED) {
+    if (status == GIT_STATUS_INDEX_MODIFIED) {
       index = 'M';
     }
-    if (status & GIT_STATUS_INDEX_DELETED) {
+    if (status == GIT_STATUS_INDEX_DELETED) {
       index = 'D';
     }
-    if (status & GIT_STATUS_INDEX_RENAMED) {
+    if (status == GIT_STATUS_INDEX_RENAMED) {
       index = 'R';
     }
-    if (status & GIT_STATUS_INDEX_TYPECHANGE) {
+    if (status == GIT_STATUS_INDEX_TYPECHANGE) {
       index = 'T';
     }
 
-    if (status & GIT_STATUS_WT_NEW) {
+    if (status == GIT_STATUS_WT_NEW) {
       workTree = 'N';
     }
-    if (status & GIT_STATUS_WT_MODIFIED) {
+    if (status == GIT_STATUS_WT_MODIFIED) {
       workTree = 'M';
     }
-    if (status & GIT_STATUS_WT_DELETED) {
+    if (status == GIT_STATUS_WT_DELETED) {
       workTree = 'D';
     }
-    if (status & GIT_STATUS_WT_TYPECHANGE) {
+    if (status == GIT_STATUS_WT_TYPECHANGE) {
       workTree = 'T';
     }
-    if (status & GIT_STATUS_WT_RENAMED) {
+    if (status == GIT_STATUS_WT_RENAMED) {
       workTree = 'R';
     }
 
-    if (status & GIT_STATUS_IGNORED) {
+    if (status == GIT_STATUS_IGNORED) {
       index = '-';
       workTree = '-';
     }
