@@ -1,22 +1,20 @@
 import consoled;
 import core.sys.posix.sys.stat;
-import dlib.filesystem.filesystem;
-import dlib.filesystem.local;
+import git.exception;
 import git.repository;
 import git.status;
-import git.exception;
 import std.algorithm.sorting;
 import std.algorithm;
 import std.array;
 import std.datetime;
-import std.file : exists, isFile;
+import std.file;
 import std.getopt;
 import std.path;
 import std.stdio;
 import std.string;
 import std.traits;
 
-static string DEFAULT_COLUMNS = "GdDo_h_n";
+static string DEFAULT_COLUMNS = "GDdo_f_h_n";
 
 enum SortOrder { byName, dirsFirst }
 
@@ -25,14 +23,14 @@ bool sortByName(DirEntry a, DirEntry b) {
 }
 
 bool sortByNameDirsFirst(DirEntry a, DirEntry b) {
-  if (a.isDirectory) {
-    if (b.isDirectory) {
+  if (a.isDir) {
+    if (b.isDir) {
       return a.name < b.name;
     } else {
       return true;
     }
   } else {
-    if (b.isDirectory) {
+    if (b.isDir) {
       return false;
     } else {
       return a.name < b.name;
@@ -45,18 +43,18 @@ class Column {
 }
 class NameColumn : Column {
   override void write(DirEntry entry, string absoluteFileName, stat_t* fileStat) {
-    writec(entry.name);
-    writec(entry.isDirectory ? "/" : "");
+    writec(entry.name.baseName);
+    writec(entry.isDir ? "/" : "");
   }
 }
 class DirColorColumn : Column {
   override void write(DirEntry entry, string absoluteFileName, stat_t* fileStat) {
-    writec(entry.isDirectory ? FontStyle.underline : FontStyle.none);
+    writec(entry.isDir ? FontStyle.underline : FontStyle.none);
   }
 }
 class DirMarkerColumn : Column {
   override void write(DirEntry entry, string absoluteFileName, stat_t* fileStat) {
-    writec(entry.isDirectory ? "d" : ".");
+    writec(entry.isDir ? "d" : ".");
   }
 }
 class ByteSizeColumn : Column {
@@ -74,42 +72,47 @@ class HumanReadableSizeColumn : Column {
       return;
     }
 
-    auto s = size / 1024.0;
-    res = format("%.1fk", s);
-    if (res.length <= 4) {
-      writec(res);
-      return;
+    auto sizes = ["k", "m", "g", "t", "p", "e", "z", "y"];
+    int current = 0;
+    double dSize = size;
+    while (current < sizes.length) {
+      dSize = dSize / 1024.0;
+      res = format("%.1f%s", dSize, sizes[current]);
+      if (res.length <= 4) {
+        writec(res);
+        return;
+      }
+      res = format("%3.0f%s", dSize, sizes[current]);
+      if (res.length <= 4) {
+        writec(res);
+        return;
+      }
+      current++;
     }
-
-    s = s / 1024.0;
-    res = format("%.1fm", s);
-    if (res.length <= 4) {
-      writec(res);
-      return;
-    }
-
-    s = s / 1024.0;
-    res = format("%.1fg", s);
-    writecln(res);
-    if (res.length <= 4) {
-      writec(res);
-      return;
-    }
+    throw new Exception("could not format size: %s".format(fileStat.st_size));
   }
 }
+import std.typecons;
+alias Flag = Tuple!(int, "bitmask", string, "name", );
+auto PERMISSIONS = [
+  Flag(S_IRUSR, "r"),
+  Flag(S_IWUSR, "w"),
+  Flag(S_IXUSR, "x"),
+  Flag(S_IRGRP, "r"),
+  Flag(S_IWGRP, "w"),
+  Flag(S_IXGRP, "x"),
+  Flag(S_IROTH, "r"),
+  Flag(S_IWOTH, "w"),
+  Flag(S_IXOTH, "x")
+];
+
 class RwxColumn : Column {
+  private string flag(int mode, Flag f) {
+    return (mode & f.bitmask) != 0 ? f.name : "-";
+  }
   override void write(DirEntry entry, string absoluteFileName, stat_t* fileStat) {
     int mode = fileStat.st_mode;
-    auto s = "" ~
-      ((mode & S_IRUSR) != 0 ? "r" : "-") ~
-      ((mode & S_IWUSR) != 0 ? "w" : "-") ~
-      ((mode & S_IXUSR) != 0 ? "x" : "-") ~
-      ((mode & S_IRGRP) != 0 ? "r" : "-") ~
-      ((mode & S_IWGRP) != 0 ? "w" : "-") ~
-      ((mode & S_IXGRP) != 0 ? "x" : "-") ~
-      ((mode & S_IROTH) != 0 ? "r" : "-") ~
-      ((mode & S_IWOTH) != 0 ? "w" : "-") ~
-      ((mode & S_IXOTH) != 0 ? "x" : "-");
+    auto s = PERMISSIONS.map!((f)  {return flag(mode, f);}).join("");
     writec(s);
   }
 }
@@ -138,7 +141,7 @@ class GitColumn : Column {
     libGitInit();
   }
   ~this() {
-    // writeln(libGitShutdown());
+    //libGitShutdown(); // crashes when using libgit2 from homebrew
   }
   override void write(DirEntry entry, string absoluteFileName, stat_t* fileStat) {
     if (!searched) {
@@ -199,76 +202,54 @@ class GitColorColumn : GitColumn {
 }
 class GitStatusColumn : GitColumn {
   import deimos.git2.status;
+  char[git_status_t] status2Index;
+  char[git_status_t] status2Worktree;
+  this() {
+      status2Index = [
+        GIT_STATUS_CURRENT: '-',
+        GIT_STATUS_INDEX_NEW: 'N',
+        GIT_STATUS_INDEX_DELETED: 'D',
+        GIT_STATUS_INDEX_MODIFIED: 'M',
+        GIT_STATUS_INDEX_RENAMED: 'R',
+        GIT_STATUS_INDEX_TYPECHANGE: 'T',
+        GIT_STATUS_IGNORED: 'I'
+      ];
+      status2Worktree = [
+        GIT_STATUS_CURRENT: '-',
+        GIT_STATUS_WT_NEW: 'N',
+        GIT_STATUS_WT_MODIFIED: 'M',
+        GIT_STATUS_WT_DELETED: 'D',
+        GIT_STATUS_WT_TYPECHANGE: 'T',
+        GIT_STATUS_WT_RENAMED: 'R',
+        GIT_STATUS_IGNORED: 'I'
+      ];
+  }
   override protected void withRepo(GitRepo repo, string workTreeRoot, DirEntry entry, string absoluteFileName, stat_t* fileStat) {
-    auto status = repo.status(entry.name).status;
-    writec(toString(status));
+    writec(toString(repo.status(entry.name).status));
   }
   override protected void withoutRepo(DirEntry entry, string absoluteFileName, stat_t* fileStat) {
     writec("  ");
   }
   private string toString(git_status_t status) {
-    dchar index = '-';
-    dchar workTree = '-';
-    if (status == GIT_STATUS_CURRENT) {
-    }
-
-    if (status == GIT_STATUS_INDEX_NEW) {
-      index = 'N';
-    }
-    if (status == GIT_STATUS_INDEX_MODIFIED) {
-      index = 'M';
-    }
-    if (status == GIT_STATUS_INDEX_DELETED) {
-      index = 'D';
-    }
-    if (status == GIT_STATUS_INDEX_RENAMED) {
-      index = 'R';
-    }
-    if (status == GIT_STATUS_INDEX_TYPECHANGE) {
-      index = 'T';
-    }
-
-    if (status == GIT_STATUS_WT_NEW) {
-      workTree = 'N';
-    }
-    if (status == GIT_STATUS_WT_MODIFIED) {
-      workTree = 'M';
-    }
-    if (status == GIT_STATUS_WT_DELETED) {
-      workTree = 'D';
-    }
-    if (status == GIT_STATUS_WT_TYPECHANGE) {
-      workTree = 'T';
-    }
-    if (status == GIT_STATUS_WT_RENAMED) {
-      workTree = 'R';
-    }
-
-    if (status == GIT_STATUS_IGNORED) {
-      index = '-';
-      workTree = '-';
-    }
+    dchar index = status in status2Index ? status2Index[status] : '-';
+    dchar workTree = status in status2Worktree ? status2Worktree[status] : '-';
     return format("%s%s", index, workTree);
   }
 }
 
 struct Formatter(T) {
   T columns;
-
   public this(T columns) {
     this.columns = columns;
   }
   public void write(string path, DirEntry entry) {
-    auto absoluteFileName = (path ~ "/" ~ entry.name);
-    absoluteFileName = absolutePath(absoluteFileName);
-    absoluteFileName = asNormalizedPath(absoluteFileName).array;
-
+    auto absoluteFileName = entry.name;
     stat_t fileStats;
     auto res = stat(absoluteFileName.toStringz, &fileStats);
     foreach (Column column; columns) {
       column.write(entry, absoluteFileName, &fileStats);
     }
-    writecln(Fg.initial, Bg.initial);
+    writecln(Fg.initial, Bg.initial, FontStyle.none);
   }
 }
 
@@ -280,11 +261,11 @@ class Columns {
   Column[dchar] columns;
   this() {
     columns = [
-      'D': new DirMarkerColumn(),
+      'D': new DirColorColumn(),
       'G': new GitColorColumn(),
       '_': new SpaceColumn(),
       'b': new ByteSizeColumn(),
-      'd': new DirColorColumn(),
+      'd': new DirMarkerColumn(),
       'f': new RwxColumn(),
       'h': new HumanReadableSizeColumn(),
       'm': new ModificationTimeColumn(),
@@ -308,14 +289,13 @@ class Columns {
 }
 
 auto sortModeDescription() {
-  return [ EnumMembers!SortOrder ].map!("format(\"  %s\", a)").array.join("\n");
+  return [EnumMembers!SortOrder].map!("format(\"  %s\", a)").array.join("\n");
 }
 
 int main(string[] args) {
   Columns availableColumns = new Columns();
   SortOrder sort = SortOrder.dirsFirst;
   string columnsString = DEFAULT_COLUMNS;
-
   auto helpInformation =
     getopt(args,
            "columns|c", format("Columns: (default: '%s')\n%s", DEFAULT_COLUMNS, availableColumns.toString()), &columnsString,
@@ -342,16 +322,16 @@ int main(string[] args) {
     stderr.writeln("Path does not exists: ", path);
     return 1;
   } else if (isFile(path)) {
-    formatter.write(dirName(path), DirEntry(baseName(path), true,false));
+    formatter.write(dirName(path), DirEntry(baseName(path)));
     return 0;
   }
 
-  auto dir = openDir(path);
+  auto dir = dirEntries(path, SpanMode.shallow);
   auto sortFunction = &sortByName;
   if (sort == SortOrder.dirsFirst) {
     sortFunction = &sortByNameDirsFirst;
   }
-  auto contents = dir.contents.array.sort!(sortFunction);
+  auto contents = dir.array.sort!(sortFunction);
   foreach (file; contents) {
     formatter.write(path, file);
   }
