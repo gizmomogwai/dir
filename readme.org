@@ -20,11 +20,12 @@ capital column ids are used for "color" columns.
 - [[https://the.exa.website/][exa]]
 
 ** comparison
-| program | language | executable-size (osx) | code-size | external dependencies (osx)                                                     | feature       |
+| <c>     | <c>      |                   <r> |       <r> | <c>                                                                             | <c>           |
+| program | language | executable-size (osx) | code-size | external dependencies (osx)                                                     | features      |
 |---------+----------+-----------------------+-----------+---------------------------------------------------------------------------------+---------------|
-| ls      | c        | 38k                   | ~154k     | libutil, libncurses, libSystem                                                  | lots,-git     |
-| exa     | [[https://www.rust-lang.org][rust]]     | 1.3m                  | 216k      | libiconv, Security, CoreFoundation, libssh2, libssl, libcrypto, libz, libSystem | lots,+git     |
-| dir     | [[https://dlang.org][dlang]]    | 2.7m                  | 9.5k      | libgit2, libSystem                                                              | not much,+git |
+| ls      | c        |                   38k |     ~154k | libutil, libncurses, libSystem                                                  | lots,-git     |
+| exa     | [[https://www.rust-lang.org][rust]]     |                  1.3m |      216k | libiconv, Security, CoreFoundation, libssh2, libssl, libcrypto, libz, libSystem | lots,+git     |
+| dir     | [[https://dlang.org][dlang]]    |                  2.7m |      9.5k | libgit2, libSystem                                                              | not much,+git |
 
 ** LICENSE
 MIT
