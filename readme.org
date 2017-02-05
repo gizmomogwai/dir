@@ -20,7 +20,6 @@ capital column ids are used for "color" columns.
 - [[https://the.exa.website/][exa]]
 
 ** comparison
-| <c>     | <c>      |                   <r> |       <r> | <c>                                                                             | <c>           |
 | program | language | executable-size (osx) | code-size | external dependencies (osx)                                                     | features      |
 |---------+----------+-----------------------+-----------+---------------------------------------------------------------------------------+---------------|
 | ls      | c        |                   38k |     ~154k | libutil, libncurses, libSystem                                                  | lots,-git     |
