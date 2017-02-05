@@ -13,10 +13,29 @@ import std.path;
 import std.stdio;
 import std.string;
 import std.traits;
+import std.typecons;
 
 static string DEFAULT_COLUMNS = "GDdo_f_h_n";
 
 enum SortOrder { byName, dirsFirst }
+
+alias Flag = Tuple!(int, "bitmask", string, "name", );
+
+auto PERMISSIONS = [
+  Flag(S_IRUSR, "r"),
+  Flag(S_IWUSR, "w"),
+  Flag(S_IXUSR, "x"),
+  Flag(S_IRGRP, "r"),
+  Flag(S_IWGRP, "w"),
+  Flag(S_IXGRP, "x"),
+  Flag(S_IROTH, "r"),
+  Flag(S_IWOTH, "w"),
+  Flag(S_IXOTH, "x")
+];
+
+class Column {
+  void write(DirEntry entry, string absoluteFileName, stat_t* fileStats) {}
+}
 
 bool sortByName(DirEntry a, DirEntry b) {
   return a.name < b.name;
@@ -38,9 +57,6 @@ bool sortByNameDirsFirst(DirEntry a, DirEntry b) {
   }
 }
 
-class Column {
-  void write(DirEntry entry, string absoluteFileName, stat_t* fileStats) {}
-}
 class NameColumn : Column {
   override void write(DirEntry entry, string absoluteFileName, stat_t* fileStat) {
     writec(entry.name.baseName);
@@ -92,20 +108,6 @@ class HumanReadableSizeColumn : Column {
     throw new Exception("could not format size: %s".format(fileStat.st_size));
   }
 }
-import std.typecons;
-alias Flag = Tuple!(int, "bitmask", string, "name", );
-auto PERMISSIONS = [
-  Flag(S_IRUSR, "r"),
-  Flag(S_IWUSR, "w"),
-  Flag(S_IXUSR, "x"),
-  Flag(S_IRGRP, "r"),
-  Flag(S_IWGRP, "w"),
-  Flag(S_IXGRP, "x"),
-  Flag(S_IROTH, "r"),
-  Flag(S_IWOTH, "w"),
-  Flag(S_IXOTH, "x")
-];
-
 class RwxColumn : Column {
   private string flag(int mode, Flag f) {
     return (mode & f.bitmask) != 0 ? f.name : "-";
@@ -141,7 +143,7 @@ class GitColumn : Column {
     libGitInit();
   }
   ~this() {
-    //libGitShutdown(); // crashes when using libgit2 from homebrew
+    // libGitShutdown(); // crashes when using libgit2 from homebrew
   }
   override void write(DirEntry entry, string absoluteFileName, stat_t* fileStat) {
     if (!searched) {
@@ -158,7 +160,6 @@ class GitColumn : Column {
         withRepo(repo, workTreeRoot, entry, absoluteFileName, fileStat);
         return;
       } catch (GitException e) {
-        // writeln(e);
       }
     }
     withoutRepo(entry, absoluteFileName, fileStat);
