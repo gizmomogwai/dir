@@ -1,19 +1,20 @@
-# dir
+* dir
 ls implementation in dlang.
 
-# usage
+** usage
 dir is not compatible with ls.
 dir always works like ls in list mode.
 look at dir --help for commandline options.
 
-## philosophy
+*** philosophy
 only two flags are supported:
 
-### columns (-c)
+**** columns (-c)
 with columns you activate the columns you want to see.
 capital column ids are used for "color" columns.
 
-### sorting (-s)
+**** sorting (-s)
 
-# prio art
-- https://the.exa.website/
+** prio art
+- the original [[http://www.gnu.org/software/coreutils/coreutils.html][ls]]
+- [[https://the.exa.website/][exa]]
